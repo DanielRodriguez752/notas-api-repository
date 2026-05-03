@@ -8,24 +8,41 @@ export default class AuthService {
     }
 
     async register(data) {
-        const exist= await this.userRepository.findByEmail(data.email);
-        if(exist){ throw new Error("Email already in use"); }
-
+        if (!data.email || !data.password || !data.name) {
+            const error = new Error("Nombre, email y password son requeridos");
+            error.statusCode = 400;
+            error.code = "VALIDATION_ERROR";
+            throw error;
+        }
+        const exist = await this.userRepository.findByEmail(data.email);
+        if (exist) {
+            const error = new Error("El email ya está en uso");
+            error.statusCode = 409;
+            error.code = "CONFLICT";
+            throw error;
+        }
         data.password = await HashService.hash(data.password);
         const newUser = new UserEntity(data);
         await this.userRepository.save(newUser);
-        return { message: "User registered successfully" };
+        return { message: "Usuario registrado exitosamente" };
     }
 
     async login({ email, password }) {
         const user = await this.userRepository.findByEmail(email);
-        if (!user) { throw new Error("Invalid credentials"); }
-
+        if (!user) {
+            const error = new Error("Credenciales inválidas");
+            error.statusCode = 401;
+            error.code = "UNAUTHORIZED";
+            throw error;
+        }
         const isMatch = await HashService.compare(password, user.password);
-        if (!isMatch) { throw new Error("Invalid credentials"); }
-
+        if (!isMatch) {
+            const error = new Error("Credenciales inválidas");
+            error.statusCode = 401;
+            error.code = "UNAUTHORIZED";
+            throw error;
+        }
         const token = JwtService.generateToken({ id: user.id, email: user.email, role: user.role });
-
         return { token };
     }
 

@@ -8,7 +8,12 @@ export default class NoteService {
     }
 
     async createNote(data) {
-        if (!data.title || !data.content) { throw new Error("Title and content are required"); }
+        if (!data.title || !data.content) { 
+            const error = new Error("El título y contenido son requeridos");
+            error.statusCode = 400;
+            error.code = "VALIDATION_ERROR";
+            throw error;
+        }
 
         const note = new NoteEntity(data);
         return await this.noteRepository.save(note);
@@ -18,25 +23,54 @@ export default class NoteService {
         return await this.noteRepository.findByUserId(userId);
     }
 
+    async getNoteById(id) {
+        const note = await this.noteRepository.findById(id);
+        if (!note) {
+            const error = new Error(`La nota con id ${id} no fue encontrada`);
+            error.statusCode = 404;
+            error.code = "NOT_FOUND";
+            throw error;
+        }
+        return note;
+    }
+
     async updateNote(id, data) {
         const note = await this.noteRepository.update(id, data);
-        if (!note) throw new Error("Note not found");
+        if (!note) {
+            const error = new Error(`La nota con id ${id} no fue encontrada`);
+            error.statusCode = 404;
+            error.code = "NOT_FOUND";
+            throw error;
+        }
         return note;
     }
 
     async deleteNote(id) {
         const note = await this.noteRepository.delete(id);
-        if (!note) throw new Error("Note not found");
+        if (!note) {
+            const error = new Error(`La nota con id ${id} no fue encontrada`);
+            error.statusCode = 404;
+            error.code = "NOT_FOUND";
+            throw error;
+        }
         return { message: "Note deleted successfully" };
     }
 
     async shareNoteByEmail(noteId, targetEmail, currentUserId) {
         const note = await this.noteRepository.findById(noteId);
-        if (!note) throw new Error("Note not found");
-        
+        if (!note) {
+            const error = new Error(`La nota con id ${noteId} no fue encontrada`);
+            error.statusCode = 404;
+            error.code = "NOT_FOUND";
+            throw error;
+        }
+
         // RESTRICCIÓN: Solo el dueño puede compartirla
         if (note.userId !== currentUserId) {
-            throw new Error("Unauthorized: You can only share your own notes");
+            const error = new Error("Unauthorized: You can only share your own notes");
+            error.statusCode = 403;
+            error.code = "FORBIDDEN";
+            throw error;
         }
 
         return await this.mailService.sendNoteEmail(targetEmail, note);
