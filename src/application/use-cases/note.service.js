@@ -8,13 +8,18 @@ export default class NoteService {
     }
 
     async createNote(data) {
-        if (!data.title || !data.content) { 
-            const error = new Error("El título y contenido son requeridos");
+        if (!data.title) {
+            const error = new Error("El título es obligatorio");
             error.statusCode = 400;
             error.code = "VALIDATION_ERROR";
             throw error;
         }
-
+        if (!data.content) {
+            const error = new Error("El contenido es obligatorio");
+            error.statusCode = 400;
+            error.code = "VALIDATION_ERROR";
+            throw error;
+        }
         const note = new NoteEntity(data);
         return await this.noteRepository.save(note);
     }

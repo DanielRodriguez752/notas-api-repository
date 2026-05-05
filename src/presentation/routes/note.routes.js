@@ -1,15 +1,12 @@
 import { Router } from "express";
 import NoteController from "../controllers/note.controller.js";
 import NoteService from "../../application/use-cases/note.service.js";
-import  upload  from "../middlewares/upload.middleware.js";
+import upload from "../middlewares/upload.middleware.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { roleMiddleware } from "../middlewares/role.middleware.js";
-
-// Importamos el repositorio de MySQL y el servicio de Mail
 import NoteMySQLRepository from "../../infrastructure/database/mysql/note.mysql.repository.js";
 import MailService from "../../infrastructure/services/mail.service.js";
 
-// inyeccion de dependencias
 const mailService = new MailService();
 const noteRepository = new NoteMySQLRepository();
 const noteService = new NoteService(noteRepository, mailService);
@@ -17,13 +14,60 @@ const noteController = new NoteController(noteService);
 
 const router = Router();
 
-// Definir las rutas para las notas  
+/**
+ * @swagger
+ * /notes/{id}/public:
+ *   get:
+ *     summary: Ver una nota pública sin token
+ *     description: |
+ *       Permite ver una nota **sin necesidad de token JWT**.
+ *       ⚠️ Si la nota tiene `isPrivate: true` el acceso será denegado.
+ *     tags: [Notes]
+ *     security: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID de la nota
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     responses:
+ *       200:
+ *         description: ✅ Nota obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Note'
+ *       403:
+ *         description: ❌ La nota es privada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: "FORBIDDEN"
+ *               message: "Esta nota es privada y no puede ser vista públicamente"
+ *               statusCode: 403
+ *       404:
+ *         description: ❌ Nota no encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: "NOT_FOUND"
+ *               message: "La nota con id 1 no fue encontrada"
+ *               statusCode: 404
+ */
+router.get("/:id/public", noteController.getPublicNote);
 
 /**
  * @swagger
  * /notes:
  *   post:
  *     summary: Crear una nueva nota
+ *     description: Crea una nota para el usuario autenticado. Se puede adjuntar una imagen.
  *     tags: [Notes]
  *     security:
  *       - bearerAuth: []
@@ -41,64 +85,79 @@ const router = Router();
  *               content:
  *                 type: string
  *                 example: "Finalizar el módulo de backend hoy."
+ *               categoryId:
+ *                 type: integer
+ *                 description: ID de la categoría (opcional)
+ *                 example: 1
+ *               isPrivate:
+ *                 type: boolean
+ *                 description: Si es true, la nota no será visible públicamente
+ *                 example: false
+ *               password:
+ *                 type: string
+ *                 description: Contraseña para proteger la nota (opcional)
+ *                 example: "1234"
  *               image:
  *                 type: string
  *                 format: binary
+ *                 description: Imagen adjunta (opcional)
  *     responses:
  *       201:
- *         description: Nota creada exitosamente
+ *         description: ✅ Nota creada exitosamente
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: string
- *                 title:
- *                   type: string
- *                 content:
- *                   type: string
- *                 imageUrl:
- *                   type: string
- *                 userId:
- *                   type: string
+ *               $ref: '#/components/schemas/Note'
  *       400:
- *         description: Título o contenido faltante
+ *         description: ❌ Título o contenido faltante
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: "VALIDATION_ERROR"
+ *               message: "El título es obligatorio"
+ *               statusCode: 400
+ *       401:
+ *         description: ❌ Token faltante o inválido
  */
 router.post("/", authMiddleware, upload.single('image'), noteController.createNote);
+
 /**
  * @swagger
  * /notes:
  *   get:
  *     summary: Obtener todas las notas del usuario autenticado
+ *     description: Devuelve todas las notas que pertenecen al usuario del token JWT.
  *     tags: [Notes]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Lista de notas obtenida exitosamente
+ *         description: ✅ Lista de notas obtenida exitosamente
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: string
- *                   title:
- *                     type: string
- *                   content:
- *                     type: string
+ *                 $ref: '#/components/schemas/Note'
  *       401:
- *         description: No autorizado (Token faltante o inválido)
+ *         description: ❌ Token faltante o inválido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get("/", authMiddleware, noteController.getNotesByUserId);
+
 /**
  * @swagger
  * /notes/{id}:
  *   put:
  *     summary: Actualizar una nota existente
+ *     description: |
+ *       Actualiza una nota existente.
+ *       ⚠️ **Solo el dueño de la nota puede editarla.**
  *     tags: [Notes]
  *     security:
  *       - bearerAuth: []
@@ -106,9 +165,10 @@ router.get("/", authMiddleware, noteController.getNotesByUserId);
  *       - in: path
  *         name: id
  *         required: true
- *         description: ID único de la nota
+ *         description: ID de la nota a actualizar
  *         schema:
- *           type: string
+ *           type: integer
+ *           example: 1
  *     requestBody:
  *       content:
  *         multipart/form-data:
@@ -117,23 +177,53 @@ router.get("/", authMiddleware, noteController.getNotesByUserId);
  *             properties:
  *               title:
  *                 type: string
+ *                 example: "Título actualizado"
  *               content:
  *                 type: string
+ *                 example: "Contenido actualizado"
+ *               categoryId:
+ *                 type: integer
+ *                 example: 2
+ *               isPrivate:
+ *                 type: boolean
+ *                 example: true
  *               image:
  *                 type: string
  *                 format: binary
  *     responses:
  *       200:
- *         description: Nota actualizada exitosamente
+ *         description: ✅ Nota actualizada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Note'
+ *       403:
+ *         description: ❌ No tienes permiso para editar esta nota
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: "FORBIDDEN"
+ *               message: "No tienes permiso para editar esta nota"
+ *               statusCode: 403
  *       404:
- *         description: Nota no encontrada
+ *         description: ❌ Nota no encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.put("/:id", authMiddleware, upload.single('image'), noteController.updateNote);
+
 /**
  * @swagger
  * /notes/{id}:
  *   delete:
- *     summary: Eliminar una nota (Solo Admins)
+ *     summary: Eliminar una nota
+ *     description: |
+ *       Elimina una nota del sistema.
+ *       ⚠️ **Solo el dueño de la nota o un administrador pueden eliminarla.**
  *     tags: [Notes]
  *     security:
  *       - bearerAuth: []
@@ -141,11 +231,13 @@ router.put("/:id", authMiddleware, upload.single('image'), noteController.update
  *       - in: path
  *         name: id
  *         required: true
+ *         description: ID de la nota a eliminar
  *         schema:
- *           type: string
+ *           type: integer
+ *           example: 1
  *     responses:
  *       200:
- *         description: Nota eliminada
+ *         description: ✅ Nota eliminada exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -153,18 +245,34 @@ router.put("/:id", authMiddleware, upload.single('image'), noteController.update
  *               properties:
  *                 message:
  *                   type: string
- *                   example: "Note deleted successfully"
+ *                   example: "Nota eliminada exitosamente"
  *       403:
- *         description: Acceso denegado (Requiere rol admin)
+ *         description: ❌ No tienes permiso para eliminar esta nota
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: "FORBIDDEN"
+ *               message: "No tienes permiso para eliminar esta nota"
+ *               statusCode: 403
  *       404:
- *         description: Nota no encontrada
+ *         description: ❌ Nota no encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete("/:id", authMiddleware, roleMiddleware(["admin"]), noteController.deleteNote);
+
 /**
  * @swagger
  * /notes/{id}/share:
  *   post:
  *     summary: Compartir una nota por email
+ *     description: |
+ *       Envía la nota por email a otro usuario.
+ *       ⚠️ **Solo el dueño de la nota puede compartirla.**
  *     tags: [Notes]
  *     security:
  *       - bearerAuth: []
@@ -172,8 +280,10 @@ router.delete("/:id", authMiddleware, roleMiddleware(["admin"]), noteController.
  *       - in: path
  *         name: id
  *         required: true
+ *         description: ID de la nota a compartir
  *         schema:
- *           type: string
+ *           type: integer
+ *           example: 1
  *     requestBody:
  *       required: true
  *       content:
@@ -185,10 +295,11 @@ router.delete("/:id", authMiddleware, roleMiddleware(["admin"]), noteController.
  *               email:
  *                 type: string
  *                 format: email
- *                 example: "amigo@example.com"
+ *                 description: Email del destinatario
+ *                 example: "amigo@gmail.com"
  *     responses:
  *       200:
- *         description: Email enviado exitosamente
+ *         description: ✅ Email enviado exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -196,9 +307,19 @@ router.delete("/:id", authMiddleware, roleMiddleware(["admin"]), noteController.
  *               properties:
  *                 message:
  *                   type: string
- *                   example: "Email sent successfully"
- *       400:
- *         description: No se pudo enviar el correo o no es dueño de la nota
+ *                   example: "Email enviado exitosamente"
+ *       403:
+ *         description: ❌ Solo puedes compartir tus propias notas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: "FORBIDDEN"
+ *               message: "Solo puedes compartir tus propias notas"
+ *               statusCode: 403
+ *       404:
+ *         description: ❌ Nota no encontrada
  */
 router.post("/:id/share", authMiddleware, noteController.shareNote);
 

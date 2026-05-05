@@ -25,6 +25,25 @@ export default class NoteController {
         }
     }
 
+    getPublicNote = async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const note = await this.noteService.getNoteById(id);
+
+            //niega el acceso si la nota es privada
+            if (note.isPrivate) {
+                const error = new Error("Esta nota es privada y no puede ser vista públicamente");
+                error.statusCode = 403;
+                error.code = "FORBIDDEN";
+                throw error;
+            }
+
+            res.status(200).json(note);
+        } catch (error) {
+            next(error);
+        }
+    }
+
     updateNote = async (req, res, next) => {
         try {
             const { id } = req.params;

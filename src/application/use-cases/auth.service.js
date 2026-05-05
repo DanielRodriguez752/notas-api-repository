@@ -8,15 +8,9 @@ export default class AuthService {
     }
 
     async register(data) {
-        if (!data.email || !data.password || !data.name) {
-            const error = new Error("Nombre, email y password son requeridos");
-            error.statusCode = 400;
-            error.code = "VALIDATION_ERROR";
-            throw error;
-        }
         const exist = await this.userRepository.findByEmail(data.email);
         if (exist) {
-            const error = new Error("El email ya está en uso");
+            const error = new Error("Email already exists");
             error.statusCode = 409;
             error.code = "CONFLICT";
             throw error;
@@ -24,7 +18,7 @@ export default class AuthService {
         data.password = await HashService.hash(data.password);
         const newUser = new UserEntity(data);
         await this.userRepository.save(newUser);
-        return { message: "Usuario registrado exitosamente" };
+        return "User registered successfully";
     }
 
     async login({ email, password }) {

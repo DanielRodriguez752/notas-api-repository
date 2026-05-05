@@ -10,7 +10,10 @@ import authRoutes from './presentation/routes/auth.routes.js';
 import { connectMongo } from './infrastructure/database/mongo/connection.js';
 import { connectMysql } from './infrastructure/database/mysql/connection.js';
 import { setupSwagger } from './infrastructure/config/swagger.config.js';
- 
+
+//categorias
+import categoryRoutes from './presentation/routes/category.routes.js';
+//
 await connectMongo();
 await connectMysql();
  
@@ -34,8 +37,10 @@ if (!fs.existsSync('uploads')) {
 app.use('/uploads', express.static('uploads'));
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/notes', noteRoutes);
-
-app.get('/api/health', (req, res) => {
+//categorias
+app.use('/api/v1/categories', categoryRoutes);
+//
+app.get('/api/v1/health', (req, res) => {
     res.status(200).json({ status: 'OK', message: 'API de notas activa' });
 });
 
@@ -61,6 +66,12 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor escuchando en el puerto ${PORT}`);
-});
+
+// Solo levanta el servidor si no estamos en modo test
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`Servidor escuchando en el puerto ${PORT}`);
+    });
+}
+
+export default app; 

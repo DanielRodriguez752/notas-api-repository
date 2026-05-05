@@ -7,7 +7,8 @@ const NoteModel = sequelize.define("Note", {
     imageUrl: { type: DataTypes.STRING },
     isPrivate: { type: DataTypes.BOOLEAN, defaultValue: false },
     password: { type: DataTypes.STRING },   
-    userId: { type: DataTypes.STRING, allowNull: false }
+    userId: { type: DataTypes.STRING, allowNull: false },
+    categoryId: { type: DataTypes.INTEGER, allowNull: true }//relacion categoria
 }, { timestamps: true });  
 
 export default class NoteMySQLRepository {
@@ -18,7 +19,8 @@ export default class NoteMySQLRepository {
             imageUrl: noteEntity.imageUrl,
             isPrivate: noteEntity.isPrivate,
             password: noteEntity.password,
-            userId: noteEntity.userId
+            userId: noteEntity.userId,
+            categoryId: noteEntity.categoryId || null //si no se asigna nada pasa como Null
         });
         return note.toJSON();
     }
